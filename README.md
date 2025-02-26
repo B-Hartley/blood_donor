@@ -248,6 +248,7 @@ automation:
       condition: time
       weekday:
         - mon
+```
 
 
 # Blood Donor Milestones and Awards
