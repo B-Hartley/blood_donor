@@ -1,0 +1,11 @@
+{
+  "domain": "blood_donor",
+  "name": "Blood Donor",
+  "documentation": "https://github.com/B-Hartley/blood_donor",
+  "dependencies": [],
+  "codeowners": ["@B-Hartley"],
+  "requirements": [],
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "version": "0.1.0"
+}
