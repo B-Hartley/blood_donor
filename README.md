@@ -20,7 +20,6 @@ This custom integration allows you to monitor your blood donation appointments a
 ## Installation
 
 ### HACS (Home Assistant Community Store)
-Not sure if I've set this up yet, so probably stick with manual installation
 
 1. Make sure you have [HACS](https://hacs.xyz/) installed
 2. Add this repository as a custom repository in HACS:
