@@ -1,0 +1,13 @@
+{
+  "domain": "blood_donor",
+  "name": "Blood Donor",
+  "documentation": "https://github.com/B-Hartley/blood_donor",
+  "issue_tracker": "https://github.com/B-Hartley/blood_donorissues",
+  "dependencies": [],
+  "codeowners": ["@B-Hartley"],
+  "requirements": [],
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "version": "1.0.0",
+  "homeassistant": "2023.4.0"
+}

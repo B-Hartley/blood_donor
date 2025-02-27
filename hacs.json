@@ -1,0 +1,8 @@
+{
+  "name": "Blood Donor",
+  "render_readme": true,
+  "domain": "blood_donor",
+  "documentation": "https://github.com/B-Hartley/blood_donor",
+  "issue_tracker": "https://github.com/B-Hartley/blood_donor/issues",
+  "homeassistant": "2025.1.0"
+}
