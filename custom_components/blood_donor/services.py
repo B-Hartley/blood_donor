@@ -31,6 +31,7 @@ SERVICE_SCHEMA_SESSION_SLOTS = vol.Schema({
     vol.Required("session_id"): cv.string,
     vol.Required("session_date"): cv.string,
     vol.Optional("procedure_code"): cv.string,
+    vol.Optional("venue_id"): cv.string,  # Add venue_id as an optional parameter
 })
 
 SERVICE_SCHEMA_BOOK_APPOINTMENT = vol.Schema({
@@ -189,7 +190,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         # Store session details for later use
                         session_details[session_id] = {
                             "session_date": session_date_full,
-                            "total_available": total_available
+                            "total_available": total_available,
+                            "venue_id": venue_id,  # Store the venue_id with the session details
+                            "procedure_code": procedure_code  # Store procedure_code too for completeness
                         }
                 
                 # Create persistent notification with the results
@@ -204,7 +207,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                             message += f"- {period['start_time']} to {period['end_time']}: {period['available_slots']} slots\n"
                         
                         message += "\nTo see detailed slot times, call the service with:\n"
-                        message += f"```yaml\nservice: blood_donor.session_slots\ndata:\n  session_id: \"{info['session_id']}\"\n  session_date: \"{info['session_date_full']}\"\n```\n\n"
+                        message += f"```yaml\nservice: blood_donor.session_slots\ndata:\n  session_id: \"{info['session_id']}\"\n  session_date: \"{info['session_date_full']}\"\n  venue_id: \"{venue_id}\"\n"
+                        if procedure_code:
+                            message += f"  procedure_code: \"{procedure_code}\"\n"
+                        message += "```\n\n"
                 else:
                     message = "No available appointments found for the selected date range."
                 
@@ -235,6 +241,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         session_id = call.data.get("session_id")
         session_date = call.data.get("session_date")
         procedure_code = call.data.get("procedure_code", "")
+        
+        # Get venue_id from the call data, or try to get it from stored session details
+        venue_id = call.data.get("venue_id")
+        
+        # If venue_id wasn't provided in the call, try to get it from stored session details
+        if not venue_id:
+            session_details = hass.data.get(f"{DOMAIN}_sessions", {}).get(session_id, {})
+            venue_id = session_details.get("venue_id", "TB78A")  # Default to TB78A if not found
+            _LOGGER.debug("Retrieved venue_id %s from stored session details", venue_id)
         
         _LOGGER.debug("Fetching slot details for session %s on %s", session_id, session_date)
         
@@ -287,7 +302,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 # Create persistent notification with the results
                 if slots:
                     message = f"## Available Slots for Session {session_id}\n\n"
-                    message += f"Date: {session_date.split('T')[0]}\n\n"
+                    message += f"Date: {session_date.split('T')[0]}\n"
+                    message += f"Venue ID: {venue_id}\n\n"
                     
                     for slot in slots:
                         time_str = slot.get("time", "").replace("T", "")
@@ -300,8 +316,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         if last_one:
                             message += " (Last available slot!)"
                         
-                        # Add booking service call example
-                        message += f"\n  ```yaml\n  service: blood_donor.book_appointment\n  data:\n    session_id: \"{session_id}\"\n    session_date: \"{session_date}\"\n    session_time: \"T{time_str}\"\n    venue_id: \"{call.data.get('venue_id', 'TB78A')}\"\n    procedure_code: \"{procedure_code_value}\"\n  ```\n"
+                        # Add booking service call example with the correct venue_id
+                        message += f"\n  ```yaml\n  service: blood_donor.book_appointment\n  data:\n    session_id: \"{session_id}\"\n    session_date: \"{session_date}\"\n    session_time: \"T{time_str}\"\n    venue_id: \"{venue_id}\"\n"
+                        if procedure_code_value:
+                            message += f"    procedure_code: \"{procedure_code_value}\"\n"
+                        message += "  ```\n"
                         
                 else:
                     message = "No available slots found for this session."
