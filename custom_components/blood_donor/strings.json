@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "username": "Email Address",
+          "password": "Password"
+        },
+        "description": "Please enter your Blood Donor credentials.",
+        "title": "Blood Donor Account"
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email address or password",
+      "unknown": "An unknown error occurred, please check the logs"
+    },
+    "abort": {
+      "already_configured": "This account is already configured"
+    }
+  }
+}

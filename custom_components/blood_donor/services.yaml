@@ -1,0 +1,235 @@
+# Services for the Blood Donor integration
+
+refresh:
+  name: Refresh
+  description: Refresh Blood Donor data
+  target:
+    entity:
+      integration: blood_donor
+
+available_appointments:
+  name: Available Appointments
+  description: Retrieve available blood donation appointments for a venue
+  fields:
+    venue_id:
+      name: Venue ID
+      description: The ID of the donation venue (e.g., TB78A for Bristol Donor Centre)
+      required: true
+      example: "TB78A"
+      default: "TB78A"      
+      selector:
+        text:
+    start_date:
+      name: Start Date
+      description: Start date for appointment search (defaults to today)
+      required: false
+      example: "2025-03-01"
+      selector:
+        date:
+    end_date:
+      name: End Date
+      description: End date for appointment search (defaults to 90 days after start date)
+      required: false
+      example: "2025-06-01"
+      selector:
+        date:
+    procedure_code:
+      name: Procedure Code
+      description: Filter by donation type (leave empty for all types)
+      required: false
+      example: "PLT"
+      default: "PLT"      
+      selector:
+        select:
+          options:
+            - label: "All"
+              value: ""
+            - label: "Whole Blood"
+              value: "WB"
+            - label: "Platelet"
+              value: "PLT"
+            - label: "Plasma"
+              value: "PLS"
+
+session_slots:
+  name: Session Slots
+  description: Retrieve detailed slot times for a specific session
+  fields:
+    session_id:
+      name: Session ID
+      description: The ID of the session (e.g., CS3XZG)
+      required: true
+      example: "CS3XZG"
+      selector:
+        text:
+    session_date:
+      name: Session Date
+      description: The full date of the session in ISO format
+      required: true
+      example: "2025-03-05T00:00:00"
+      selector:
+        text:
+    procedure_code:
+      name: Procedure Code
+      description: Filter by donation type (leave empty for all types)
+      required: false
+      example: "PLT"
+      default: "PLT"      
+      selector:
+        select:
+          options:
+            - label: "All"
+              value: ""
+            - label: "Whole Blood"
+              value: "WB"
+            - label: "Platelet"
+              value: "PLT"
+            - label: "Plasma"
+              value: "PLS"
+
+book_appointment:
+  name: Book Appointment
+  description: Book a blood donation appointment
+  fields:
+    session_id:
+      name: Session ID
+      description: The ID of the session (e.g., CS3XZG)
+      required: true
+      example: "CS3XZG"
+      selector:
+        text:
+    session_date:
+      name: Session Date
+      description: The full date of the session in ISO format
+      required: true
+      example: "2025-03-05T00:00:00"
+      selector:
+        text:
+    session_time:
+      name: Session Time
+      description: The time of the appointment in the format T1255
+      required: true
+      example: "T1255"
+      selector:
+        text:
+    venue_id:
+      name: Venue ID
+      description: The ID of the donation venue
+      required: true
+      example: "TB78A"
+      default: "TB78A"      
+      selector:
+        text:
+    procedure_code:
+      name: Procedure Code
+      description: The type of donation (leave empty for default)
+      required: false
+      example: "PLT"
+      default: "PLT"      
+      selector:
+        select:
+          options:
+            - label: "Default for your donor profile"
+              value: ""
+            - label: "Whole Blood"
+              value: "WB"
+            - label: "Platelet"
+              value: "PLT"
+            - label: "Plasma"
+              value: "PLS"
+
+booking_helper:
+  name: Booking Helper
+  description: Find and book the closest appointment to a target time
+  fields:
+    venue_id:
+      name: Venue ID
+      description: The ID of the donation venue
+      required: true
+      example: "TB78A"
+      default: "TB78A"
+      selector:
+        text:
+    target_date:
+      name: Target Date
+      description: The specific date you want to donate (use either this or Target Day of Week)
+      required: false
+      default: "2025-03-05"
+      selector:
+        date:
+    target_day_of_week:
+      name: Target Day of Week
+      description: The day of week you prefer to donate (use either this or Target Date)
+      required: false
+      default: "wednesday"
+      selector:
+        select:
+          options:
+            - label: "Monday"
+              value: "monday"
+            - label: "Tuesday"
+              value: "tuesday"
+            - label: "Wednesday"
+              value: "wednesday"
+            - label: "Thursday"
+              value: "thursday"
+            - label: "Friday"
+              value: "friday"
+            - label: "Saturday"
+              value: "saturday"
+            - label: "Sunday"
+              value: "sunday"
+    target_time:
+      name: Target Time
+      description: Your preferred time of day
+      required: true
+      default: "12:55"
+      example: "12:55"
+      selector:
+        time:
+    tolerance_hours:
+      name: Tolerance (hours)
+      description: How many hours before/after your target time is acceptable
+      required: false
+      default: 2.0
+      selector:
+        number:
+          min: 0.5
+          max: 12
+          step: 0.5
+          unit_of_measurement: hours
+    min_days_from_last_appointment:
+      name: Minimum Days From Last Appointment
+      description: When using day of week, ensure this many days have passed since your last appointment
+      required: false
+      default: 14
+      selector:
+        number:
+          min: 1
+          max: 90
+          step: 1
+          unit_of_measurement: days
+    procedure_code:
+      name: Procedure Code
+      description: The type of donation (leave empty for default)
+      required: false
+      example: "PLT"
+      default: "PLT"
+      selector:
+        select:
+          options:
+            - label: "Default for your donor profile"
+              value: ""
+            - label: "Whole Blood"
+              value: "WB"
+            - label: "Platelet"
+              value: "PLT"
+            - label: "Plasma"
+              value: "PLS"
+    auto_book:
+      name: Auto Book
+      description: Automatically book the best available appointment
+      required: false
+      default: false
+      selector:
+        boolean:
