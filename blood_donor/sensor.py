@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from . import DOMAIN, BloodDonorDataUpdateCoordinator
 
@@ -28,7 +29,7 @@ async def async_setup_entry(
         BloodDonorTotalAppointmentsSensor(coordinator),
         # Add award sensors
         BloodDonorAwardStateSensor(coordinator),
-        BloodDonorTotalCreditsSensor(coordinator),
+        # BloodDonorTotalCreditsSensor removed as requested
         BloodDonorTotalAwardsSensor(coordinator),
         BloodDonorRegistrationDateSensor(coordinator),
         BloodDonorNextMilestoneSensor(coordinator),
@@ -61,6 +62,7 @@ class BloodDonorNextAppointmentSensor(BloodDonorBaseSensor):
 
     _attr_name = "Next Appointment"
     _attr_icon = "mdi:calendar-clock"
+    _attr_device_class = "date"  # Add device class to enable proper date formatting
 
     @property
     def unique_id(self):
@@ -82,7 +84,7 @@ class BloodDonorNextAppointmentSensor(BloodDonorBaseSensor):
         
         if not appointments:
             _LOGGER.debug("No appointments found in data")
-            return "No appointments scheduled"
+            return None  # Return None instead of a string to indicate no appointments
 
         # Sort appointments by date
         try:
@@ -97,12 +99,14 @@ class BloodDonorNextAppointmentSensor(BloodDonorBaseSensor):
             next_appointment = sorted_appointments[0]
             _LOGGER.debug("Next appointment session date: %s", next_appointment["session"]["sessionDate"])
             
+            # Return the date in a proper datetime format that Home Assistant can handle
             appointment_date = datetime.strptime(
                 next_appointment["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
-            ).strftime("%Y-%m-%d")
+            )
             
-            _LOGGER.debug("Next appointment formatted date: %s", appointment_date)
-            return appointment_date
+            # Convert to an ISO format string (Home Assistant will parse this as datetime)
+            _LOGGER.debug("Next appointment as datetime: %s", appointment_date)
+            return appointment_date.date()
             
         except (KeyError, ValueError, IndexError) as error:
             _LOGGER.error("Error processing appointment data: %s", error)
@@ -144,12 +148,18 @@ class BloodDonorNextAppointmentSensor(BloodDonorBaseSensor):
         )
         postcode = next_appointment["session"]["venue"]["address"]["postcode"].strip()
 
+        # Parse the appointment date into a datetime object for better formatting options
+        appointment_date = datetime.strptime(
+            next_appointment["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
+        )
+
         return {
             "venue": venue,
             "time": time_formatted,
             "procedure": procedure,
             "address": address,
             "postcode": postcode,
+            "date_str": appointment_date.strftime("%Y-%m-%d"),
             "all_appointments": [
                 {
                     "date": datetime.strptime(
@@ -304,29 +314,10 @@ class BloodDonorAwardStateSensor(BloodDonorAwardBaseSensor):
         return {
             "show_as_achievement": awards_data.get("showAsAchievement", False),
             "achieved_awards": achieved_awards,
+            "total_credits": awards_data.get("totalCredits", 0),  # Add total credits here since we removed the dedicated sensor
         }
 
-
-class BloodDonorTotalCreditsSensor(BloodDonorAwardBaseSensor):
-    """Sensor for total donation credits."""
-
-    _attr_name = "Total Credits"
-    _attr_icon = "mdi:counter"
-    _attr_unit_of_measurement = "credits"
-
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return f"{self.coordinator.api._donor_id}_total_credits"
-
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        if not self.coordinator.data or "awards" not in self.coordinator.data:
-            return None
-
-        return self.coordinator.data.get("awards", {}).get("totalCredits", 0)
-
+# BloodDonorTotalCreditsSensor has been removed as requested
 
 class BloodDonorTotalAwardsSensor(BloodDonorAwardBaseSensor):
     """Sensor for total awards received."""
@@ -353,6 +344,7 @@ class BloodDonorRegistrationDateSensor(BloodDonorAwardBaseSensor):
 
     _attr_name = "Registration Date"
     _attr_icon = "mdi:calendar-clock"
+    _attr_device_class = "date"  # Add device class to enable proper date formatting
 
     @property
     def unique_id(self):
@@ -369,14 +361,14 @@ class BloodDonorRegistrationDateSensor(BloodDonorAwardBaseSensor):
         if registration_date:
             try:
                 date_obj = datetime.strptime(registration_date.split("T")[0], "%Y-%m-%d")
-                return date_obj.strftime("%Y-%m-%d")
+                return date_obj.date()  # Return date object directly
             except (ValueError, TypeError):
                 return None
         return None
 
 
 class BloodDonorNextMilestoneSensor(BloodDonorAwardBaseSensor):
-    """Sensor for next milestone."""
+    """Sensor for next milestone based on donation credits."""
 
     _attr_name = "Next Milestone"
     _attr_icon = "mdi:flag-checkered"
@@ -394,11 +386,23 @@ class BloodDonorNextMilestoneSensor(BloodDonorAwardBaseSensor):
 
         awards_data = self.coordinator.data.get("awards", {})
         awards_list = awards_data.get("awards", [])
+        total_credits = awards_data.get("totalCredits", 0)
         
-        # Find the first non-achieved award
-        for award in awards_list:
-            if not award.get("isAchieved", True):
-                return award.get("title", "Unknown")
+        _LOGGER.debug("Calculating next milestone. Total credits: %s", total_credits)
+        
+        # Sort awards by credit criteria
+        sorted_awards = sorted(awards_list, key=lambda x: x.get("creditCriteria", 0))
+        
+        # Find the first award that requires more credits than the donor currently has
+        for award in sorted_awards:
+            credit_criteria = award.get("creditCriteria", 0)
+            title = award.get("title", "Unknown")
+            
+            _LOGGER.debug("Checking award: %s, requires %s credits", title, credit_criteria)
+            
+            if credit_criteria > total_credits:
+                _LOGGER.debug("Found next milestone: %s (requires %s credits)", title, credit_criteria)
+                return title
                 
         return "All milestones achieved"
         
@@ -410,18 +414,25 @@ class BloodDonorNextMilestoneSensor(BloodDonorAwardBaseSensor):
 
         awards_data = self.coordinator.data.get("awards", {})
         total_credits = awards_data.get("totalCredits", 0)
+        awards_list = awards_data.get("awards", [])
+        
+        # Sort awards by credit criteria
+        sorted_awards = sorted(awards_list, key=lambda x: x.get("creditCriteria", 0))
         
         # Find the next milestone and calculate progress
         next_milestone = None
-        progress = 0
         
-        for award in awards_data.get("awards", []):
-            if not award.get("isAchieved", True):
+        for award in sorted_awards:
+            credit_criteria = award.get("creditCriteria", 0)
+            
+            if credit_criteria > total_credits:
                 next_milestone = award
                 break
                 
         if next_milestone:
             milestone_credits = next_milestone.get("creditCriteria", 0)
+            milestone_title = next_milestone.get("title", "Unknown")
+            
             if milestone_credits > 0:
                 progress = min(100, round(total_credits / milestone_credits * 100))
                 credits_needed = milestone_credits - total_credits
@@ -431,12 +442,16 @@ class BloodDonorNextMilestoneSensor(BloodDonorAwardBaseSensor):
                 
             return {
                 "next_milestone_credits": milestone_credits,
+                "next_milestone_title": milestone_title,
+                "current_credits": total_credits,
                 "credits_needed": credits_needed,
                 "progress_percentage": progress
             }
             
         return {
             "next_milestone_credits": None,
+            "next_milestone_title": "All milestones achieved",
+            "current_credits": total_credits,
             "credits_needed": 0,
             "progress_percentage": 100
-        }        
+        }

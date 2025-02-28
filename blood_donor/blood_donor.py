@@ -66,8 +66,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     from .services import async_setup_services
     await async_setup_services(hass)
 
-    # Set up sensor platform - which now includes the award sensors
-    await hass.config_entries.async_forward_entry_setup(entry, "sensor")
+    # Set up sensor platform - Fix: using async_forward_entry_setups instead of async_forward_entry_setup
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     return True
 
