@@ -1,12 +1,12 @@
 {
   "domain": "blood_donor",
   "name": "Blood Donor",
-  "documentation": "https://github.com/B-Hartley/blood_donor",
-  "issue_tracker": "https://github.com/B-Hartley/blood_donor/issues",
-  "dependencies": [],
   "codeowners": ["@B-Hartley"],
-  "requirements": [],
   "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/B-Hartley/blood_donor",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/B-Hartley/blood_donor/issues",
+  "requirements": [],
   "version": "1.3.0"
 }
