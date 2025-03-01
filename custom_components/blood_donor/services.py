@@ -7,6 +7,7 @@ import json
 
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 import homeassistant.helpers.config_validation as cv
+from homeassistant.components import persistent_notification
 
 from . import DOMAIN
 from .booking_helper import setup_booking_helper_service
@@ -17,6 +18,7 @@ SERVICE_REFRESH = "refresh"
 SERVICE_AVAILABLE_APPOINTMENTS = "available_appointments"
 SERVICE_SESSION_SLOTS = "session_slots"
 SERVICE_BOOK_APPOINTMENT = "book_appointment"
+SERVICE_VENUE_SEARCH = "venue_search"  # New service
 
 SERVICE_SCHEMA_REFRESH = vol.Schema({})
 
@@ -42,6 +44,14 @@ SERVICE_SCHEMA_BOOK_APPOINTMENT = vol.Schema({
     vol.Optional("procedure_code"): cv.string,
 })
 
+# Schema for the new venue search service
+SERVICE_SCHEMA_VENUE_SEARCH = vol.Schema({
+    vol.Required("search_criteria"): cv.string,  # Could be postcode or location name
+    vol.Optional("procedure_code"): cv.string,   # e.g., "PLT", "WB", "PLS"
+    vol.Optional("start_date"): cv.date,
+    vol.Optional("max_distance"): cv.positive_float,  # in miles
+})
+
 
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up services for Blood Donor integration."""
@@ -51,7 +61,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     if (hass.services.has_service(DOMAIN, SERVICE_REFRESH) and 
         hass.services.has_service(DOMAIN, SERVICE_AVAILABLE_APPOINTMENTS) and
         hass.services.has_service(DOMAIN, SERVICE_SESSION_SLOTS) and
-        hass.services.has_service(DOMAIN, SERVICE_BOOK_APPOINTMENT)):
+        hass.services.has_service(DOMAIN, SERVICE_BOOK_APPOINTMENT) and
+        hass.services.has_service(DOMAIN, SERVICE_VENUE_SEARCH)):
         return
 
     @callback
@@ -217,7 +228,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 # Store session details in Home Assistant for later reference
                 hass.data.setdefault(f"{DOMAIN}_sessions", {}).update(session_details)
                 
-                hass.components.persistent_notification.async_create(
+                persistent_notification.async_create(
+                    hass,
                     message,
                     title="Blood Donor Available Appointments",
                     notification_id=f"blood_donor_appointments_{venue_id}"
@@ -325,7 +337,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 else:
                     message = "No available slots found for this session."
                 
-                hass.components.persistent_notification.async_create(
+                persistent_notification.async_create(
+                    hass,
                     message,
                     title=f"Blood Donor Appointment Slots - {session_date.split('T')[0]}",
                     notification_id=f"blood_donor_slots_{session_id}"
@@ -405,7 +418,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 
                 if response.status != 200:
                     _LOGGER.error("Failed to book appointment: %s", response_text)
-                    hass.components.persistent_notification.async_create(
+                    _LOGGER.error("Failed to book appointment: %s", response_text)
+                    persistent_notification.async_create(
+                        hass,
                         f"Failed to book appointment: {response_text}",
                         title="Blood Donor Appointment Booking Failed",
                         notification_id="blood_donor_booking_failed"
@@ -434,7 +449,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         message += f"**Procedure:** {procedure}\n\n"
                         message += "Your appointment has been booked. Remember to prepare accordingly."
                         
-                        hass.components.persistent_notification.async_create(
+                        persistent_notification.async_create(
+                            hass,
                             message,
                             title="Blood Donor Appointment Booked",
                             notification_id="blood_donor_booking_success"
@@ -444,7 +460,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         await coordinator.async_refresh()
                         
                     else:
-                        hass.components.persistent_notification.async_create(
+                        persistent_notification.async_create(
+                            hass,
                             f"Appointment booking returned status: {status}. Please check the Blood Donor website for details.",
                             title="Blood Donor Appointment Booking Status",
                             notification_id="blood_donor_booking_status"
@@ -452,7 +469,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 
                 except json.JSONDecodeError:
                     _LOGGER.error("Failed to parse booking response")
-                    hass.components.persistent_notification.async_create(
+                    _LOGGER.error("Failed to parse booking response")
+                    persistent_notification.async_create(
+                        hass,
                         "Failed to parse the booking response. Please check the Blood Donor website to verify if the appointment was booked.",
                         title="Blood Donor Appointment Booking Error",
                         notification_id="blood_donor_booking_error"
@@ -460,11 +479,156 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 
         except Exception as error:
             _LOGGER.exception("Error booking appointment: %s", error)
-            hass.components.persistent_notification.async_create(
+            persistent_notification.async_create(
+                hass,
                 f"An error occurred while booking your appointment: {str(error)}",
                 title="Blood Donor Appointment Booking Error",
                 notification_id="blood_donor_booking_error"
             )
+
+    @callback
+    async def async_venue_search_service(call: ServiceCall) -> None:
+        """Search for blood donation venues near a location."""
+        _LOGGER.debug("Venue search service called with: %s", call.data)
+        
+        coordinators = hass.data.get(DOMAIN, {})
+        if not coordinators:
+            _LOGGER.warning("No Blood Donor coordinators found")
+            return
+        
+        # Get parameters from the service call
+        search_criteria = call.data.get("search_criteria")  # Postcode or location name
+        procedure_code = call.data.get("procedure_code", "")  # Optional procedure code
+        max_distance = call.data.get("max_distance", 20.0)  # Default: 20 miles
+        
+        # Get the start date or default to today
+        start_date = call.data.get("start_date")
+        if start_date is None:
+            start_date = datetime.now().date()
+        
+        # Format date as string in the format the API expects
+        start_date_str = f"{start_date.isoformat()}T00:00:00"
+        
+        _LOGGER.debug("Searching for venues near %s for procedure code %s", 
+                     search_criteria, procedure_code)
+        
+        # Get the first coordinator (we just need its API for authentication)
+        coordinator = next(iter(coordinators.values()))
+        
+        try:
+            # Use the API client from the coordinator to make the request
+            if not coordinator.api._access_token:
+                await coordinator.api.login()
+                
+            if not coordinator.api._access_token:
+                _LOGGER.error("Failed to login to Blood Donor service")
+                return
+                
+            with async_timeout.timeout(30):
+                headers = {"Authorization": f"Bearer {coordinator.api._access_token}"}
+                session = coordinator.api._session
+                
+                # Build the URL with parameters
+                url = "https://my.blood.co.uk/api/venues"
+                params = {
+                    "searchCriteria": search_criteria,
+                    "startDate": start_date_str
+                }
+                
+                if procedure_code:
+                    params["procedureCode"] = procedure_code
+                
+                _LOGGER.debug("Making request to %s with params %s", url, params)
+                
+                response = await session.get(url, headers=headers, params=params)
+                
+                if response.status == 401:
+                    # Token expired, try to login again
+                    _LOGGER.debug("Token expired, logging in again")
+                    if await coordinator.api.login():
+                        return await async_venue_search_service(call)
+                    _LOGGER.error("Re-login failed")
+                    return
+                
+                if response.status != 200:
+                    _LOGGER.error("Failed to search venues: %s", await response.text())
+                    persistent_notification.async_create(
+                        hass,
+                        f"Failed to search venues: Status {response.status}",
+                        title="Blood Donor Venue Search Failed",
+                        notification_id="blood_donor_venue_search_failed"
+                    )
+                    return
+                
+                data = await response.json()
+                _LOGGER.debug("Venue search response: %s", data)
+                
+                venues = data.get("results", [])
+                
+                # Filter by maximum distance if specified
+                if max_distance:
+                    venues = [v for v in venues if v.get("venueDistance", 0) <= max_distance]
+                
+                # Create persistent notification with the results
+                if venues:
+                    message = "## Blood Donation Venues Found\n\n"
+                    
+                    for venue in venues:
+                        venue_info = venue.get("venue", {})
+                        venue_id = venue_info.get("venueId", "")
+                        venue_name = venue_info.get("venueName", "")
+                        distance = venue.get("venueDistance", 0)
+                        is_donor_centre = venue.get("isDonorCentre", False)
+                        is_community_centre = venue.get("isCommunityCentre", False)
+                        next_session_date = venue.get("dateOfNextSession", "").split("T")[0] if venue.get("dateOfNextSession") else "Unknown"
+                        
+                        # Format venue address
+                        address_info = venue_info.get("address", {})
+                        address_lines = address_info.get("lines", [])
+                        postcode = address_info.get("postcode", "")
+                        
+                        # Clean up address lines (remove extra spaces)
+                        clean_address_lines = [line.strip() for line in address_lines if line.strip()]
+                        address = ", ".join(clean_address_lines)
+                        
+                        # Venue type description
+                        venue_type = "Donor Centre" if is_donor_centre else "Community Venue" if is_community_centre else "Other Venue"
+                        
+                        message += f"### {venue_name}\n"
+                        message += f"**ID:** {venue_id}\n"
+                        message += f"**Type:** {venue_type}\n"
+                        message += f"**Distance:** {distance:.2f} miles\n"
+                        message += f"**Address:** {address}, {postcode}\n"
+                        message += f"**Next session:** {next_session_date}\n\n"
+                        
+                        # Add service call example for checking appointments at this venue
+                        message += f"To check available appointments at this venue:\n"
+                        message += f"```yaml\nservice: blood_donor.available_appointments\ndata:\n  venue_id: \"{venue_id}\"\n"
+                        if procedure_code:
+                            message += f"  procedure_code: \"{procedure_code}\"\n"
+                        message += "```\n\n"
+                    
+                else:
+                    message = f"No venues found within {max_distance} miles of {search_criteria}."
+                
+                persistent_notification.async_create(
+                    hass,
+                    message,
+                    title="Blood Donor Venue Search Results",
+                    notification_id=f"blood_donor_venues_{search_criteria}"
+                )
+                
+                _LOGGER.debug("Created notification with venue search results")
+                
+        except Exception as error:
+            _LOGGER.exception("Error searching for venues: %s", error)
+            persistent_notification.async_create(
+                hass,
+                f"An error occurred while searching for venues: {str(error)}",
+                title="Blood Donor Venue Search Error",
+                notification_id="blood_donor_venue_search_error"
+            )
+
 
     hass.services.async_register(
         DOMAIN,
@@ -492,6 +656,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         SERVICE_BOOK_APPOINTMENT,
         async_book_appointment_service,
         schema=SERVICE_SCHEMA_BOOK_APPOINTMENT,
+    )
+    
+    # Register the new venue search service
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_VENUE_SEARCH,
+        async_venue_search_service,
+        schema=SERVICE_SCHEMA_VENUE_SEARCH,
     )
     
     await setup_booking_helper_service(hass)

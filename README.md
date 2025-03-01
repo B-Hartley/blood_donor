@@ -1,10 +1,9 @@
-This is very much a work in progress.............
-comments to:
-https://community.home-assistant.io/t/uk-blood-donation-custom-component/854704
 
 # Blood Donor Integration for Home Assistant
 
 This custom integration allows you to monitor your blood donation appointments and donor details from the UK's Blood Donor service in Home Assistant, as well as check for available appointments and book new ones.
+Still developing this, so please put your thoughts and comments on this thread.....
+https://community.home-assistant.io/t/uk-blood-donation-custom-component/854704
 
 ## Features
 
@@ -13,6 +12,7 @@ This custom integration allows you to monitor your blood donation appointments a
 - Monitor your donation credit count
 - Display your blood group
 - Track the total number of scheduled appointments
+- Find donation venues near your location
 - Check for available appointment slots at donation centers
 - View detailed time slots for specific sessions
 - Book new appointments directly from Home Assistant
@@ -62,9 +62,25 @@ The integration provides several services to interact with the Blood Donor websi
 | Service | Description |
 |---------|-------------|
 | `blood_donor.refresh` | Refresh data from the Blood Donor service |
+| `blood_donor.venue_search` | Find donation venues near a specified location |
 | `blood_donor.available_appointments` | Check for available appointment slots at a donation venue |
 | `blood_donor.session_slots` | Get detailed time slots for a specific session |
 | `blood_donor.book_appointment` | Book a new blood donation appointment |
+| `blood_donor.booking_helper` | Find and book the closest appointment to a target time |
+
+### Finding Donation Venues Near You
+
+Before booking an appointment, you might want to find the closest donation venues to your location. Use the venue search service:
+
+```yaml
+service: blood_donor.venue_search
+data:
+  search_criteria: "BS1 1AB"  # Your postcode or a location name
+  procedure_code: "PLT"  # Optional - filter by donation type code
+  max_distance: 20  # Optional - maximum distance in miles (default: 20)
+```
+
+This will create a notification showing available venues with their addresses, distances, and venue IDs. You can then use these venue IDs with other services to check appointments.
 
 ### Checking Available Appointments
 
@@ -146,6 +162,27 @@ automation:
         venue_id: "TB78A"
         start_date: "{{ now().date() }}"
         end_date: "{{ (now() + timedelta(days=90)).date() }}"
+```
+
+### Find Nearby Donation Venues When Home Location Changes
+
+```yaml
+automation:
+  - alias: "Find Blood Donation Venues Near Home"
+    trigger:
+      platform: state
+      entity_id: person.your_person
+    condition:
+      - condition: template
+        value_template: "{{ trigger.to_state.state == 'home' }}"
+      - condition: template
+        value_template: "{{ trigger.from_state.state != 'home' }}"
+    action:
+      service: blood_donor.venue_search
+      data:
+        search_criteria: "{{ states('sensor.home_postcode') }}"
+        procedure_type: "Whole Blood"
+        max_distance: 15
 ```
 
 ## Disclaimer
@@ -309,3 +346,116 @@ cards:
 ## Badge Images
 
 For the best experience, create a folder called `blood_donor` in your Home Assistant's `www` folder and add a `donor_badges.png` image showing the badge designs.
+
+
+# Venue Search Feature
+
+The integration now includes a powerful venue search feature that allows you to find blood donation venues near any location in the UK.
+
+## How to Use Venue Search
+
+Use the venue search service to find donation venues near a specific location:
+
+```yaml
+service: blood_donor.venue_search
+data:
+  search_criteria: "BS1 1AB"  # Your postcode or location name
+  procedure_code: "PLT"       # Optional - specific donation type
+  start_date: "2025-03-01"     # Optional - check availability from this date
+  max_distance: 20             # Optional - maximum distance in miles
+```
+
+## What You'll Get
+
+The service returns a notification with detailed information about each venue found:
+
+- Venue name and ID
+- Distance from your search location
+- Full address and postcode
+- Type of venue (Donor Centre or Community Venue)
+- Date of the next available session
+- Types of donations supported (Whole Blood, Platelet, Plasma)
+
+## Service Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `search_criteria` | Postcode or location name to search from (required) |
+| `procedure_code` | Filter by donation type code (e.g., "WB", "PLT", "PLS") |
+| `start_date` | Check for venue availability from this date |
+| `max_distance` | Maximum distance in miles (default: 20) |
+
+## Complete Donation Workflow
+
+The venue search integrates perfectly with the rest of the services to create a complete blood donation workflow:
+
+1. **Find venues**: Use `venue_search` to find donation venues near you
+2. **Check availability**: Use `available_appointments` to see available slots at a venue
+3. **View time slots**: Use `session_slots` to see detailed appointment times
+4. **Book appointment**: Use `book_appointment` to secure your preferred time
+5. **Or use the booking helper**: Alternatively, use `booking_helper` to find and book the best available slot
+
+## Examples
+
+### Finding Platelet Donation Locations
+
+```yaml
+service: blood_donor.venue_search
+data:
+  search_criteria: "Bristol"
+  procedure_code: "PLT"
+```
+
+### Finding Nearest Whole Blood Venue
+
+```yaml
+service: blood_donor.venue_search
+data:
+  search_criteria: "BS1 1AA"
+  procedure_code: "WB"
+  max_distance: 10
+```
+
+### Checking Available Venues in the Next Week
+
+```yaml
+service: blood_donor.venue_search
+data:
+  search_criteria: "BS1 1AA"
+  start_date: "{{ now().date() }}"
+```
+
+## Automation Ideas
+
+### Search for New Venues When Travel Plans Change
+
+```yaml
+automation:
+  - alias: "Find Blood Donation Venues at Destination"
+    trigger:
+      platform: state
+      entity_id: calendar.travel_plans
+    action:
+      service: blood_donor.venue_search
+      data:
+        search_criteria: "{{ trigger.to_state.attributes.location }}"
+        max_distance: 30
+```
+
+### Monthly Check of Multiple Venues
+
+```yaml
+automation:
+  - alias: "Check Multiple Donation Venues Monthly"
+    trigger:
+      platform: time
+      at: "09:00:00"
+    condition:
+      condition: time
+      day: "1"
+    action:
+      - service: blood_donor.venue_search
+        data:
+          search_criteria: "{{ states('person.user') }}"
+          max_distance: 25
+```

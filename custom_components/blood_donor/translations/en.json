@@ -34,7 +34,7 @@
       }
     }
   },
-  "services": {
+"services": {
     "refresh": {
       "name": "Refresh",
       "description": "Refresh Blood Donor data"
@@ -140,6 +140,28 @@
         "auto_book": {
           "name": "Auto Book",
           "description": "Automatically book the best available appointment"
+        }
+      }
+    },
+    "venue_search": {
+      "name": "Venue Search",
+      "description": "Search for blood donation venues near a location",
+      "fields": {
+        "search_criteria": {
+          "name": "Search Criteria",
+          "description": "Postcode or location name to search for nearby venues"
+        },
+        "procedure_code": {
+          "name": "Procedure Code",
+          "description": "Filter by donation type code"
+        },
+        "start_date": {
+          "name": "Start Date",
+          "description": "Date to check for venue availability (defaults to today)"
+        },
+        "max_distance": {
+          "name": "Maximum Distance",
+          "description": "Maximum distance in miles to search for venues"
         }
       }
     }

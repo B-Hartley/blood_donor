@@ -233,3 +233,49 @@ booking_helper:
       default: false
       selector:
         boolean:
+
+venue_search:
+  name: Venue Search
+  description: Search for blood donation venues near a location
+  fields:
+    search_criteria:
+      name: Search Criteria
+      description: Postcode or location name to search for nearby venues
+      required: true
+      example: "BS24 7EP"
+      selector:
+        text:
+    procedure_code:
+      name: Procedure Code
+      description: Filter by donation type code
+      required: false
+      example: "PLT"
+      selector:
+        select:
+          options:
+            - label: "All"
+              value: ""
+            - label: "Whole Blood"
+              value: "WB"
+            - label: "Platelet"
+              value: "PLT"
+            - label: "Plasma"
+              value: "PLS"
+    start_date:
+      name: Start Date
+      description: Date to check for venue availability (defaults to today)
+      required: false
+      example: "2025-03-01"
+      selector:
+        date:
+    max_distance:
+      name: Maximum Distance
+      description: Maximum distance in miles to search for venues
+      required: false
+      default: 20.0
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: miles
