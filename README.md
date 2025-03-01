@@ -23,6 +23,8 @@ https://community.home-assistant.io/t/uk-blood-donation-custom-component/854704
 
 ### HACS (Home Assistant Community Store)
 
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?repository=https%3A%2F%2Fgithub.com%2FB-Hartley%2Fblood_donor%2F&owner=B-Hartley&category=Integration)
+
 1. Make sure you have [HACS](https://hacs.xyz/) installed
 2. Add this repository as a custom repository in HACS:
    - Go to HACS > Integrations
