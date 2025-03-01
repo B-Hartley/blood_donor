@@ -2,7 +2,9 @@
 # Blood Donor Integration for Home Assistant
 
 This custom integration allows you to monitor your blood donation appointments and donor details from the UK's Blood Donor service in Home Assistant, as well as check for available appointments and book new ones.
-Still developing this, so please put your thoughts and comments on this thread.....
+Still developing this.
+
+So please put your thoughts and comments on this thread.....
 https://community.home-assistant.io/t/uk-blood-donation-custom-component/854704
 
 ## Features
