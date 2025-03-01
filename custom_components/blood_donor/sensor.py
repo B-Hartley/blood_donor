@@ -49,6 +49,8 @@ class BloodDonorBaseSensor(CoordinatorEntity, SensorEntity):
             "identifiers": {(DOMAIN, coordinator.api._donor_id)},
             "name": "Blood Donor",
             "manufacturer": "Blood.co.uk",
+            "model": coordinator.api._procedure_type or "Unknown",
+            "serial_number": coordinator.api._donor_id or "Unknown",
         }
 
     @property
@@ -125,6 +127,21 @@ class BloodDonorNextAppointmentSensor(BloodDonorBaseSensor):
         if not appointments:
             return {"appointments": []}
 
+        # Get next possible appointment date if available
+        next_possible_appointment = None
+        eligibility = self.coordinator.data.get("eligibility", {})
+        if eligibility and "nextPossibleAppointmentDate" in eligibility:
+            next_possible_date = eligibility.get("nextPossibleAppointmentDate")
+            if next_possible_date:
+                try:
+                    # Parse the date string and format it properly
+                    next_possible_datetime = datetime.strptime(
+                        next_possible_date.split("T")[0], "%Y-%m-%d"
+                    )
+                    next_possible_appointment = next_possible_datetime.strftime("%Y-%m-%d")
+                except (ValueError, TypeError, IndexError):
+                    next_possible_appointment = next_possible_date
+
         # Sort appointments by date
         sorted_appointments = sorted(
             appointments,
@@ -153,25 +170,33 @@ class BloodDonorNextAppointmentSensor(BloodDonorBaseSensor):
             next_appointment["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
         )
 
-        return {
-            "venue": venue,
+        attributes = {
             "time": time_formatted,
+            "date_str": appointment_date.strftime("%Y-%m-%d"),
             "procedure": procedure,
+            "venue": venue,
             "address": address,
             "postcode": postcode,
-            "date_str": appointment_date.strftime("%Y-%m-%d"),
-            "all_appointments": [
-                {
-                    "date": datetime.strptime(
-                        apt["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
-                    ).strftime("%Y-%m-%d"),
-                    "time": apt["time"].replace("T", ""),
-                    "venue": apt["session"]["venue"]["venueName"],
-                    "procedure": apt["procedureDescription"],
-                }
-                for apt in sorted_appointments
-            ],
         }
+        
+        # Add next possible appointment date if available
+        if next_possible_appointment:
+            attributes["next_possible_appointment"] = next_possible_appointment
+            
+        # Add all appointments at the end
+        attributes["all_appointments"] = [
+            {
+                "date": datetime.strptime(
+                    apt["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
+                ).strftime("%Y-%m-%d"),
+                "time": apt["time"].replace("T", ""),
+                "venue": apt["session"]["venue"]["venueName"],
+                "procedure": apt["procedureDescription"],
+            }
+            for apt in sorted_appointments
+        ]
+        
+        return attributes
 
 
 class BloodDonorDonationCreditSensor(BloodDonorBaseSensor):
@@ -253,6 +278,8 @@ class BloodDonorAwardBaseSensor(CoordinatorEntity, SensorEntity):
             "identifiers": {(DOMAIN, coordinator.api._donor_id)},
             "name": "Blood Donor",
             "manufacturer": "Blood.co.uk",
+            "model": coordinator.api._procedure_type or "Unknown",
+            "serial_number": coordinator.api._donor_id or "Unknown",
         }
 
     @property

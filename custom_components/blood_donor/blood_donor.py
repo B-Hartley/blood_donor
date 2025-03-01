@@ -4,7 +4,7 @@ For more details about this integration, please refer to the documentation.
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import voluptuous as vol
 
 import aiohttp
@@ -28,7 +28,10 @@ from homeassistant.const import (
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "blood_donor"
-SCAN_INTERVAL = timedelta(hours=12)
+# Changed from 12 hours to 24 hours for routine updates
+STANDARD_SCAN_INTERVAL = timedelta(hours=24)
+# Shorter interval for when appointment is near
+APPOINTMENT_SCAN_INTERVAL = timedelta(hours=1)
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -91,6 +94,7 @@ class BloodDonorApi:
         self._access_token = None
         self._refresh_token = None
         self._donor_id = None
+        self._procedure_type = None
 
     async def login(self):
         """Login to the Blood Donor service."""
@@ -270,21 +274,25 @@ class BloodDonorApi:
 
 
 class BloodDonorDataUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching data from the API."""
+    """Class to manage fetching data from the API with dynamic update intervals."""
 
     def __init__(self, hass, api):
         """Initialize."""
         self.api = api
+        self.hass = hass
+        self._next_appointment_datetime = None
+        self._dynamic_update_interval = STANDARD_SCAN_INTERVAL
+        
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=SCAN_INTERVAL,
+            update_interval=STANDARD_SCAN_INTERVAL,
         )
-        _LOGGER.debug("Blood Donor coordinator initialized")
+        _LOGGER.debug("Blood Donor coordinator initialized with 24-hour interval")
 
     async def _async_update_data(self):
-        """Update data via API."""
+        """Update data via API and adjust update interval dynamically."""
         _LOGGER.debug("Coordinator updating data from Blood Donor API")
         try:
             data = await self.api.get_data()
@@ -297,8 +305,122 @@ class BloodDonorDataUpdateCoordinator(DataUpdateCoordinator):
             # Check if awards data was successfully retrieved
             if "awards" in data:
                 _LOGGER.debug("Awards data found in API response")
+                
+            # Store donor ID and procedure type for device info
+            if data.get("donorID"):
+                self.api._donor_id = data.get("donorID")
+                _LOGGER.debug("Stored donor ID: %s", self.api._donor_id)
+                
+            if data.get("procedureType"):
+                self.api._procedure_type = data.get("procedureType")
+                _LOGGER.debug("Stored procedure type: %s", self.api._procedure_type)
+            
+            # After successful data retrieval, adjust the update interval based on appointments
+            self._adjust_update_interval(data)
             
             return data
+            
         except Exception as exception:
             _LOGGER.exception("Unexpected error during data update")
             raise UpdateFailed(f"Error communicating with API: {exception}")
+            
+    def _adjust_update_interval(self, data):
+        """Adjust update interval based on appointment time."""
+        try:
+            appointments = data.get("appointments", [])
+            now = datetime.now()
+            today = now.date()
+            
+            # Check if we have any appointments
+            if not appointments:
+                # No appointments, use standard interval
+                self._set_update_interval(STANDARD_SCAN_INTERVAL)
+                return
+                
+            # Find the closest appointment
+            next_appointment = None
+            try:
+                # Sort appointments by date
+                sorted_appointments = sorted(
+                    appointments,
+                    key=lambda x: datetime.strptime(
+                        x["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
+                    ),
+                )
+                
+                if sorted_appointments:
+                    next_appointment = sorted_appointments[0]
+            except (KeyError, ValueError, IndexError) as error:
+                _LOGGER.error("Error finding next appointment: %s", error)
+                self._set_update_interval(STANDARD_SCAN_INTERVAL)
+                return
+                
+            if not next_appointment:
+                # No valid next appointment, use standard interval
+                self._set_update_interval(STANDARD_SCAN_INTERVAL)
+                return
+                
+            # Extract appointment date and time
+            try:
+                appointment_date_str = next_appointment["session"]["sessionDate"].split("T")[0]
+                appointment_date = datetime.strptime(appointment_date_str, "%Y-%m-%d").date()
+                
+                # Get time if available
+                appointment_time = None
+                time_str = next_appointment.get("time", "").replace("T", "")
+                if len(time_str) >= 4:
+                    hour = int(time_str[:2])
+                    minute = int(time_str[2:])
+                    appointment_time = time(hour, minute)
+                    appointment_datetime = datetime.combine(appointment_date, appointment_time)
+                else:
+                    # Default to noon if no specific time
+                    appointment_datetime = datetime.combine(appointment_date, time(12, 0))
+                
+                self._next_appointment_datetime = appointment_datetime
+                
+                # Calculate how far we are from the appointment
+                time_until_appointment = appointment_datetime - now
+                hours_until_appointment = time_until_appointment.total_seconds() / 3600
+                
+                # Determine the appropriate update interval
+                if appointment_date == today:
+                    # Appointment is today
+                    if hours_until_appointment > 1:
+                        # More than 1 hour before appointment
+                        _LOGGER.debug("Appointment is today, more than 1 hour away. Setting 1-hour update interval.")
+                        self._set_update_interval(APPOINTMENT_SCAN_INTERVAL)
+                    elif hours_until_appointment >= -8:
+                        # Less than 1 hour before or up to 8 hours after
+                        _LOGGER.debug("Appointment is now or recently completed. Setting 1-hour update interval.")
+                        self._set_update_interval(APPOINTMENT_SCAN_INTERVAL)
+                    else:
+                        # More than 8 hours after appointment
+                        _LOGGER.debug("Appointment was today but over 8 hours ago. Resuming standard interval.")
+                        self._set_update_interval(STANDARD_SCAN_INTERVAL)
+                elif time_until_appointment <= timedelta(hours=4):
+                    # Appointment is within 4 hours
+                    _LOGGER.debug("Appointment is within 4 hours. Setting 1-hour update interval.")
+                    self._set_update_interval(APPOINTMENT_SCAN_INTERVAL)
+                else:
+                    # Appointment is further in the future
+                    _LOGGER.debug("No imminent appointment. Using standard 24-hour update interval.")
+                    self._set_update_interval(STANDARD_SCAN_INTERVAL)
+                    
+            except (ValueError, TypeError, KeyError) as error:
+                _LOGGER.error("Error processing appointment date/time: %s", error)
+                self._set_update_interval(STANDARD_SCAN_INTERVAL)
+                
+        except Exception as exception:
+            _LOGGER.exception("Error adjusting update interval: %s", exception)
+            self._set_update_interval(STANDARD_SCAN_INTERVAL)
+            
+    def _set_update_interval(self, interval):
+        """Set the update interval if it has changed."""
+        if self.update_interval != interval:
+            self._dynamic_update_interval = interval
+            self.update_interval = interval
+            _LOGGER.info("Blood Donor update interval adjusted to %s", interval)
+            
+            # Schedule the next update with the new interval
+            self._schedule_refresh()

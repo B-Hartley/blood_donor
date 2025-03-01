@@ -239,7 +239,7 @@ venue_search:
       name: Search Criteria
       description: Postcode or location name to search for nearby venues
       required: true
-      example: "BS24 7EP"
+      example: "BS1 1AB"
       selector:
         text:
     procedure_code:
