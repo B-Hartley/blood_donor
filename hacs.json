@@ -1,6 +1,6 @@
 {
   "name": "Blood Donor",
+  "content_in_root": false,  
   "render_readme": true,
-  "issue_tracker": "https://github.com/B-Hartley/blood_donor/issues",
   "homeassistant": "2025.1.0"
 }
