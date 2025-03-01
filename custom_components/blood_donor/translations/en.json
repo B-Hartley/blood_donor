@@ -38,6 +38,11 @@
       "next_milestone": {
         "name": "Next Milestone"
       }
+    },
+    "calendar": {
+      "appointments": {
+        "name": "Appointments"
+      }
     }
   },
 "services": {

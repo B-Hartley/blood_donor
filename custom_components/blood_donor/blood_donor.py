@@ -45,7 +45,7 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor","calendar"]
 
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Blood Donor component."""

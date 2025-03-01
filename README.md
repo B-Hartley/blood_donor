@@ -14,6 +14,7 @@ https://community.home-assistant.io/t/uk-blood-donation-custom-component/854704
 - Check for available appointment slots at donation centers
 - View detailed time slots for specific sessions
 - Book new appointments directly from Home Assistant
+- View and track your appointments in Home Assistant Calendar
 
 ## Installation
 
@@ -56,6 +57,79 @@ After setting up the integration, the following entities will be created:
 | `sensor.blood_donor_award_state` | Your current award level |
 | `sensor.blood_donor_total_awards` | Number of donation awards received |
 | `sensor.blood_donor_next_milestone` | Your next award milestone |
+| `calendar.blood_donor_appointments` | Calendar containing all your blood donation appointments |
+
+## Calendar Integration
+
+The Blood Donor integration automatically creates a calendar entity that displays all of your upcoming blood donation appointments. This calendar integrates with the standard Home Assistant calendar features, making it easy to view and manage your donation schedule.
+
+### Calendar Features
+
+- View all upcoming donation appointments in the Home Assistant calendar view
+- Each appointment shows the donation type, venue, and full address
+- Appointment durations are automatically calculated based on donation type:
+  - Whole Blood: 45 minutes
+  - Platelet: 90 minutes
+  - Plasma: 60 minutes
+- Integrates with Home Assistant's calendar card, agenda view, and month view
+- Works with Google Calendar synchronization via the Home Assistant Google Calendar integration
+
+### Using the Calendar
+
+Access your blood donation appointments in several ways:
+
+1. **Calendar Card**: Add the calendar card to your dashboard
+   ```yaml
+   type: calendar
+   entities:
+     - calendar.blood_donor_appointments
+   ```
+
+2. **Calendar View**: Go to the Calendar tab in Home Assistant to see your appointments alongside other calendars
+
+3. **Agenda Card**: Use the agenda card to see a list of upcoming appointments
+   ```yaml
+   type: custom:atomic-calendar-revive
+   entities:
+     - calendar.blood_donor_appointments
+   ```
+
+### Calendar Automation Examples
+
+You can create automations based on your donation appointments:
+
+```yaml
+# Morning notification on the day of donation
+automation:
+  - alias: "Blood Donation Day Reminder"
+    trigger:
+      platform: calendar
+      event: start
+      entity_id: calendar.blood_donor_appointments
+      offset: "-0:00:00"
+    action:
+      service: notify.mobile_app
+      data:
+        title: "Blood Donation Today"
+        message: "Don't forget your blood donation appointment today at {{ trigger.calendar_event.start_time_datetime.strftime('%-I:%M %p') }}
+                  at {{ trigger.calendar_event.location }}."
+```
+
+```yaml
+# Pre-donation hydration reminder
+automation:
+  - alias: "Blood Donation Hydration Reminder"
+    trigger:
+      platform: calendar
+      event: start
+      entity_id: calendar.blood_donor_appointments
+      offset: "-6:00:00"
+    action:
+      service: notify.mobile_app
+      data:
+        title: "Hydration Reminder"
+        message: "Your blood donation is in 6 hours. Remember to drink plenty of water!"
+```
 
 ## Services
 

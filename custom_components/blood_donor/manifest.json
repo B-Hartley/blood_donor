@@ -3,10 +3,10 @@
   "name": "Blood Donor",
   "codeowners": ["@B-Hartley"],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["calendar"],
   "documentation": "https://github.com/B-Hartley/blood_donor",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/B-Hartley/blood_donor/issues",
-  "requirements": [],
-  "version": "1.3.0"
+  "requirements": ["pytz"],
+  "version": "1.4.0"
 }
