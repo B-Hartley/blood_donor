@@ -3,9 +3,6 @@
 refresh:
   name: Refresh
   description: Refresh Blood Donor data
-  target:
-    entity:
-      integration: blood_donor
 
 available_appointments:
   name: Available Appointments
