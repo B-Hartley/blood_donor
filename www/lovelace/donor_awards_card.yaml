@@ -1,0 +1,136 @@
+type: vertical-stack
+cards:
+  # Awards Header Card
+  - type: custom:mushroom-title-card
+    title: Blood Donor Awards
+    subtitle: Your donation journey
+
+  # Current Award State Card
+  - type: custom:mushroom-template-card
+    primary: "Current Achievement"
+    secondary: >
+      {{ states('sensor.blood_donor_award_state') }} 
+      ({{ state_attr('sensor.blood_donor_award_state', 'total_credits') }} Total Credits)
+    icon: mdi:trophy
+    layout: vertical
+    entity: sensor.blood_donor_award_state
+    icon_color: amber
+    tap_action:
+      action: more-info
+
+  # Donation Progress Section
+  - type: custom:mushroom-template-card
+    primary: Next Milestone
+    secondary: >
+      {{ states('sensor.blood_donor_next_milestone') }} 
+      ({{ state_attr('sensor.blood_donor_next_milestone', 'next_milestone_credits') }} Credits)
+    icon: mdi:flag-checkered
+    layout: vertical
+    entity: sensor.blood_donor_next_milestone
+
+  # Progress Bar
+  - type: custom:bar-card
+    direction: right
+    entity: sensor.blood_donor_next_milestone
+    title: Progress to Next Milestone
+    positions:
+      icon: outside
+      name: inside
+      value: inside
+      indicator: "off"
+    animation:
+      state: "on"
+    unit_of_measurement: "%"
+    max: 100
+    min: 0
+    severity:
+      - color: '#FF0000'
+        value: 0
+      - color: '#FFA500'
+        value: 30
+      - color: '#FFFF00'
+        value: 60
+      - color: '#00FF00'
+        value: 90
+    value: "{{ state_attr('sensor.blood_donor_next_milestone', 'progress_percentage') }}"
+    entity_row: true
+
+  # Donation Info Grid
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      # Total Awards Card
+      - type: custom:mushroom-entity-card
+        entity: sensor.blood_donor_total_awards
+        icon: mdi:medal
+        name: Total Awards
+        icon_color: amber
+        tap_action:
+          action: more-info
+
+      # Donation Credit Card
+      - type: custom:mushroom-entity-card
+        entity: sensor.blood_donor_donation_credit
+        icon: mdi:counter
+        name: Donation Credits
+        icon_color: red
+        tap_action:
+          action: more-info
+
+  # Next Appointment Section
+  - type: custom:mushroom-template-card
+    primary: Next Appointment
+    secondary: >
+      {% if states('sensor.blood_donor_next_appointment') != 'unknown' and states('sensor.blood_donor_next_appointment') != 'unavailable' and states('sensor.blood_donor_next_appointment') != 'None' %}
+        {{ states('sensor.blood_donor_next_appointment') }}
+        {{ state_attr('sensor.blood_donor_next_appointment', 'time') }} at
+        {{ state_attr('sensor.blood_donor_next_appointment', 'venue') }}
+      {% else %}
+        No scheduled appointments
+      {% endif %}
+    icon: mdi:calendar-clock
+    icon_color: blue
+    layout: vertical
+    entity: sensor.blood_donor_next_appointment
+    tap_action:
+      action: more-info
+
+  # Achieved Awards Section
+  - type: custom:mushroom-title-card
+    title: Achieved Awards
+    subtitle: Your donation milestones
+
+  # Awards List Card
+  - type: entities
+    entities:
+      - type: custom:template-entity-row
+        name: Donation History
+        state: "{{ state_attr('sensor.blood_donor_award_state', 'achieved_awards') | length }} Awards Achieved"
+        entity: sensor.blood_donor_award_state
+    header:
+      type: divider
+      label: Award Timeline
+    footer:
+      type: divider
+  
+  # Awards Timeline
+  - type: conditional
+    conditions:
+      - entity: sensor.blood_donor_award_state
+        state_not: "unavailable"
+    card:
+      type: markdown
+      content: >
+        {% set awards = state_attr('sensor.blood_donor_award_state', 'achieved_awards') %}
+        {% if awards %}
+          {% for award in awards %}
+            - **{{ award.title }}** ({{ award.credit_criteria }} Credits)
+              {% if award.awarded_date %}
+              _Achieved on {{ award.awarded_date }}_
+              {% endif %}
+            
+          {% endfor %}
+        {% else %}
+          No awards data available
+        {% endif %}

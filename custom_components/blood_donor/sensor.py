@@ -25,13 +25,9 @@ async def async_setup_entry(
     sensors = [
         BloodDonorNextAppointmentSensor(coordinator),
         BloodDonorDonationCreditSensor(coordinator),
-        BloodDonorBloodGroupSensor(coordinator),
         BloodDonorTotalAppointmentsSensor(coordinator),
-        # Add award sensors
         BloodDonorAwardStateSensor(coordinator),
-        # BloodDonorTotalCreditsSensor removed as requested
         BloodDonorTotalAwardsSensor(coordinator),
-        BloodDonorRegistrationDateSensor(coordinator),
         BloodDonorNextMilestoneSensor(coordinator),
     ]
 
@@ -45,11 +41,30 @@ class BloodDonorBaseSensor(CoordinatorEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_has_entity_name = True
+        
+        # Format registration date for device info if available
+        registration_date_str = "Unknown"
+        if coordinator.data and "awards" in coordinator.data:
+            registration_date = coordinator.data.get("awards", {}).get("registrationDate")
+            if registration_date:
+                try:
+                    date_obj = datetime.strptime(registration_date.split("T")[0], "%Y-%m-%d")
+                    registration_date_str = date_obj.strftime("%Y-%m-%d")
+                except (ValueError, TypeError):
+                    registration_date_str = "Unknown"
+        
+        # Get blood group for device info
+        blood_group = "Unknown"
+        if coordinator.data:
+            blood_group = coordinator.data.get("bloodGroup", "Unknown")
+        
+        # Update device info format
+        donation_type = coordinator.api._procedure_type or "Unknown"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.api._donor_id)},
             "name": "Blood Donor",
             "manufacturer": "Blood.co.uk",
-            "model": coordinator.api._procedure_type or "Unknown",
+            "model": f"{donation_type} Donor ({blood_group}) since {registration_date_str}",
             "serial_number": coordinator.api._donor_id or "Unknown",
         }
 
@@ -183,18 +198,7 @@ class BloodDonorNextAppointmentSensor(BloodDonorBaseSensor):
         if next_possible_appointment:
             attributes["next_possible_appointment"] = next_possible_appointment
             
-        # Add all appointments at the end
-        attributes["all_appointments"] = [
-            {
-                "date": datetime.strptime(
-                    apt["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
-                ).strftime("%Y-%m-%d"),
-                "time": apt["time"].replace("T", ""),
-                "venue": apt["session"]["venue"]["venueName"],
-                "procedure": apt["procedureDescription"],
-            }
-            for apt in sorted_appointments
-        ]
+        # Removed "all_appointments" attribute as it's now in the BloodDonorTotalAppointmentsSensor
         
         return attributes
 
@@ -222,34 +226,13 @@ class BloodDonorDonationCreditSensor(BloodDonorBaseSensor):
     @property
     def unit_of_measurement(self):
         """Return the unit of measurement."""
-        return "donations"
-
-
-class BloodDonorBloodGroupSensor(BloodDonorBaseSensor):
-    """Sensor for blood group."""
-
-    _attr_name = "Blood Group"
-    _attr_icon = "mdi:water"
-
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return f"{self.coordinator.api._donor_id}_blood_group"
-
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        if not self.coordinator.data:
-            return None
-
-        # Data is directly at the root level, not under accountDetails
-        return self.coordinator.data.get("bloodGroup")
+        return "units"
 
 
 class BloodDonorTotalAppointmentsSensor(BloodDonorBaseSensor):
-    """Sensor for total upcoming appointments."""
+    """Sensor for upcoming appointments."""
 
-    _attr_name = "Total Upcoming Appointments"
+    _attr_name = "Upcoming Appointments"
     _attr_icon = "mdi:calendar-multiple"
 
     @property
@@ -267,6 +250,40 @@ class BloodDonorTotalAppointmentsSensor(BloodDonorBaseSensor):
         appointments = self.coordinator.data.get("appointments", [])
         return len(appointments)
         
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        if not self.coordinator.data:
+            return {}
+
+        # Data is directly at the root level, not under accountDetails
+        appointments = self.coordinator.data.get("appointments", [])
+        if not appointments:
+            return {"appointments": []}
+            
+        # Sort appointments by date
+        sorted_appointments = sorted(
+            appointments,
+            key=lambda x: datetime.strptime(
+                x["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
+            ),
+        )
+        
+        # Add all appointments as attributes
+        return {
+            "all_appointments": [
+                {
+                    "date": datetime.strptime(
+                        apt["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
+                    ).strftime("%Y-%m-%d"),
+                    "time": apt["time"].replace("T", ""),
+                    "venue": apt["session"]["venue"]["venueName"],
+                    "procedure": apt["procedureDescription"],
+                }
+                for apt in sorted_appointments
+            ]
+        }
+        
 class BloodDonorAwardBaseSensor(CoordinatorEntity, SensorEntity):
     """Base class for Blood Donor award sensors."""
 
@@ -274,11 +291,30 @@ class BloodDonorAwardBaseSensor(CoordinatorEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_has_entity_name = True
+        
+        # Format registration date for device info if available
+        registration_date_str = "Unknown"
+        if coordinator.data and "awards" in coordinator.data:
+            registration_date = coordinator.data.get("awards", {}).get("registrationDate")
+            if registration_date:
+                try:
+                    date_obj = datetime.strptime(registration_date.split("T")[0], "%Y-%m-%d")
+                    registration_date_str = date_obj.strftime("%Y-%m-%d")
+                except (ValueError, TypeError):
+                    registration_date_str = "Unknown"
+        
+        # Get blood group for device info
+        blood_group = "Unknown"
+        if coordinator.data:
+            blood_group = coordinator.data.get("bloodGroup", "Unknown")
+            
+        # Update device info format
+        donation_type = coordinator.api._procedure_type or "Unknown"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.api._donor_id)},
             "name": "Blood Donor",
             "manufacturer": "Blood.co.uk",
-            "model": coordinator.api._procedure_type or "Unknown",
+            "model": f"{donation_type} Donor ({blood_group}) since {registration_date_str}",
             "serial_number": coordinator.api._donor_id or "Unknown",
         }
 
@@ -344,8 +380,6 @@ class BloodDonorAwardStateSensor(BloodDonorAwardBaseSensor):
             "total_credits": awards_data.get("totalCredits", 0),  # Add total credits here since we removed the dedicated sensor
         }
 
-# BloodDonorTotalCreditsSensor has been removed as requested
-
 class BloodDonorTotalAwardsSensor(BloodDonorAwardBaseSensor):
     """Sensor for total awards received."""
 
@@ -364,34 +398,6 @@ class BloodDonorTotalAwardsSensor(BloodDonorAwardBaseSensor):
             return None
 
         return self.coordinator.data.get("awards", {}).get("totalAwards", 0)
-
-
-class BloodDonorRegistrationDateSensor(BloodDonorAwardBaseSensor):
-    """Sensor for donor registration date."""
-
-    _attr_name = "Registration Date"
-    _attr_icon = "mdi:calendar-clock"
-    _attr_device_class = "date"  # Add device class to enable proper date formatting
-
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return f"{self.coordinator.api._donor_id}_registration_date"
-
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        if not self.coordinator.data or "awards" not in self.coordinator.data:
-            return None
-
-        registration_date = self.coordinator.data.get("awards", {}).get("registrationDate")
-        if registration_date:
-            try:
-                date_obj = datetime.strptime(registration_date.split("T")[0], "%Y-%m-%d")
-                return date_obj.date()  # Return date object directly
-            except (ValueError, TypeError):
-                return None
-        return None
 
 
 class BloodDonorNextMilestoneSensor(BloodDonorAwardBaseSensor):

@@ -1,0 +1,151 @@
+type: vertical-stack
+cards:
+  # Appointments Header Card
+  - type: custom:mushroom-title-card
+    title: Blood Donor Appointments
+    subtitle: Your donation schedule
+
+  # Next Appointment Details Card
+  - type: custom:mushroom-template-card
+    primary: Next Appointment
+    secondary: >
+      {% if states('sensor.blood_donor_next_appointment') != 'unknown' and states('sensor.blood_donor_next_appointment') != 'unavailable' and states('sensor.blood_donor_next_appointment') != 'None' %}
+        {{ states('sensor.blood_donor_next_appointment') }} at 
+        {{ state_attr('sensor.blood_donor_next_appointment', 'time') }}
+      {% else %}
+        No scheduled appointments
+      {% endif %}
+    icon: mdi:calendar-clock
+    icon_color: red
+    layout: vertical
+    entity: sensor.blood_donor_next_appointment
+    tap_action:
+      action: more-info
+
+  # Next Appointment Location Card
+  - type: conditional
+    conditions:
+      - entity: sensor.blood_donor_next_appointment
+        state_not: "unavailable"
+        state_not: "unknown"
+        state_not: "None"
+    card:
+      type: custom:mushroom-template-card
+      primary: "{{ state_attr('sensor.blood_donor_next_appointment', 'venue') }}"
+      secondary: >
+        {{ state_attr('sensor.blood_donor_next_appointment', 'address') }}, 
+        {{ state_attr('sensor.blood_donor_next_appointment', 'postcode') }}
+      icon: mdi:map-marker
+      icon_color: red
+      layout: vertical
+      entity: sensor.blood_donor_next_appointment
+      tap_action:
+        action: url
+        url_path: "https://www.google.com/maps/search/?api=1&query={{ state_attr('sensor.blood_donor_next_appointment', 'address') }},{{ state_attr('sensor.blood_donor_next_appointment', 'postcode') }}"
+
+  # Donation Type Card
+  - type: conditional
+    conditions:
+      - entity: sensor.blood_donor_next_appointment
+        state_not: "unavailable"
+        state_not: "unknown"
+        state_not: "None"
+    card:
+      type: custom:mushroom-template-card
+      primary: "Donation Type"
+      secondary: "{{ state_attr('sensor.blood_donor_next_appointment', 'procedure') }}"
+      icon: mdi:water
+      icon_color: red
+      layout: vertical
+      entity: sensor.blood_donor_next_appointment
+
+  # Upcoming Appointments Section
+  - type: custom:mushroom-title-card
+    title: Upcoming Appointments
+    subtitle: "{{ states('sensor.blood_donor_upcoming_appointments') }} appointments scheduled"
+
+  # Upcoming Appointments List
+  - type: conditional
+    conditions:
+      - entity: sensor.blood_donor_upcoming_appointments
+        state_not: "0"
+        state_not: "unavailable"
+        state_not: "unknown"
+    card:
+      type: markdown
+      content: >
+        {% set appointments = state_attr('sensor.blood_donor_upcoming_appointments', 'all_appointments') %}
+        {% if appointments %}
+          | Date | Time | Venue | Type |
+          | ---- | ---- | ----- | ---- |
+          {% for apt in appointments %}
+          | {{ apt.date }} | {{ apt.time }} | {{ apt.venue }} | {{ apt.procedure }} |
+          {% endfor %}
+        {% else %}
+          No upcoming appointments
+        {% endif %}
+
+  # Next Possible Appointment Info
+  - type: conditional
+    conditions:
+      - entity: sensor.blood_donor_next_appointment
+        attribute: next_possible_appointment
+    card:
+      type: custom:mushroom-template-card
+      primary: "Next Eligible Donation Date"
+      secondary: "{{ state_attr('sensor.blood_donor_next_appointment', 'next_possible_appointment') }}"
+      icon: mdi:calendar-alert
+      icon_color: amber
+      layout: vertical
+      entity: sensor.blood_donor_next_appointment
+
+  # Booking Helper Buttons
+  - type: custom:mushroom-title-card
+    title: Book Appointments
+    subtitle: Find available slots
+
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: custom:mushroom-chips-card
+        chips:
+          - type: action
+            icon: mdi:magnify
+            name: Find Venues
+            tap_action:
+              action: call-service
+              service: blood_donor.venue_search
+              service_data:
+                search_criteria: !secret home_postcode
+                max_distance: 20
+          - type: action
+            icon: mdi:calendar-search
+            name: Check Slots
+            tap_action:
+              action: call-service
+              service: blood_donor.available_appointments
+              service_data:
+                venue_id: "TB78A" # Change to your preferred venue
+                start_date: "{{ now().date() }}"
+                end_date: "{{ (now() + timedelta(days=90)).date() }}"
+      - type: custom:mushroom-chips-card
+        chips:
+          - type: action
+            icon: mdi:calendar-plus
+            name: Book Helper
+            tap_action:
+              action: call-service
+              service: blood_donor.booking_helper
+              service_data:
+                venue_id: "TB78A" # Change to your preferred venue
+                target_day_of_week: "saturday"
+                target_time: "10:00"
+                tolerance_hours: 2
+                auto_book: false
+          - type: action
+            icon: mdi:refresh
+            name: Refresh
+            tap_action:
+              action: call-service
+              service: blood_donor.refresh

@@ -1,10 +1,7 @@
-
 # Blood Donor Integration for Home Assistant
 
 This custom integration allows you to monitor your blood donation appointments and donor details from the UK's Blood Donor service in Home Assistant, as well as check for available appointments and book new ones.
-Still developing this.
-
-So please put your thoughts and comments on this thread.....
+Still developing this, so please put your thoughts and comments on this thread.....
 https://community.home-assistant.io/t/uk-blood-donation-custom-component/854704
 
 ## Features
@@ -12,8 +9,7 @@ https://community.home-assistant.io/t/uk-blood-donation-custom-component/854704
 - View your next scheduled appointment with date, time, and location
 - See all upcoming appointments
 - Monitor your donation credit count
-- Display your blood group
-- Track the total number of scheduled appointments
+- Track award milestones and achievements
 - Find donation venues near your location
 - Check for available appointment slots at donation centers
 - View detailed time slots for specific sessions
@@ -26,7 +22,7 @@ https://community.home-assistant.io/t/uk-blood-donation-custom-component/854704
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?repository=https%3A%2F%2Fgithub.com%2FB-Hartley%2Fblood_donor%2F&owner=B-Hartley&category=Integration)
 
 1. Make sure you have [HACS](https://hacs.xyz/) installed
-2. Add this repository as a custom repository in HACS:
+2. Click the badge above or add this repository as a custom repository in HACS:
    - Go to HACS > Integrations
    - Click the three dots in the upper right corner
    - Select "Custom repositories"
@@ -56,8 +52,10 @@ After setting up the integration, the following entities will be created:
 |--------|-------------|
 | `sensor.blood_donor_next_appointment` | Your next scheduled appointment date |
 | `sensor.blood_donor_donation_credit` | Your donation credit count |
-| `sensor.blood_donor_blood_group` | Your blood group |
-| `sensor.blood_donor_total_upcoming_appointments` | Total number of scheduled appointments |
+| `sensor.blood_donor_upcoming_appointments` | Count of scheduled appointments |
+| `sensor.blood_donor_award_state` | Your current award level |
+| `sensor.blood_donor_total_awards` | Number of donation awards received |
+| `sensor.blood_donor_next_milestone` | Your next award milestone |
 
 ## Services
 
@@ -137,6 +135,10 @@ The `sensor.blood_donor_next_appointment` entity includes the following attribut
 - `procedure`: The type of donation (e.g., Whole Blood, Platelet)
 - `address`: The full address of the venue
 - `postcode`: The postcode of the venue
+- `next_possible_appointment`: The earliest date you're eligible to donate again
+
+The `sensor.blood_donor_upcoming_appointments` entity includes:
+
 - `all_appointments`: A list of all upcoming appointments with date, time, venue, and procedure
 
 ## Common Venue IDs
@@ -297,14 +299,12 @@ The integration now includes support for tracking your blood donation milestones
 
 ## Award Sensors
 
-After setting up the integration, the following new award-related entities will be created:
+After setting up the integration, the following award-related entities will be created:
 
 | Entity | Description |
 |--------|-------------|
 | `sensor.blood_donor_award_state` | Your current award level (e.g., "250 Credits") |
-| `sensor.blood_donor_total_credits` | Total donation credits accumulated |
 | `sensor.blood_donor_total_awards` | Number of donation awards received |
-| `sensor.blood_donor_registration_date` | Date you registered as a blood donor |
 | `sensor.blood_donor_next_milestone` | Your next award milestone |
 
 ## Award Attributes
@@ -313,12 +313,21 @@ The `sensor.blood_donor_award_state` entity includes the following attributes:
 
 - `show_as_achievement`: Whether to show the award as an achievement
 - `achieved_awards`: A list of all awards achieved with title, credit criteria, and awarded date
+- `total_credits`: Total donation credits accumulated
 
 The `sensor.blood_donor_next_milestone` entity includes:
 
 - `next_milestone_credits`: The credit requirement for your next milestone
 - `credits_needed`: How many more credits needed to reach the next milestone
 - `progress_percentage`: Your progress toward the next milestone as a percentage
+- `current_credits`: Your current total credits
+
+## Device Information
+
+The integration provides device information showing:
+- Your donation type (e.g., "Platelet Donor")
+- Your blood group (e.g., "A-")
+- Your registration date 
 
 ## Lovelace Card
 
@@ -332,7 +341,6 @@ You can use the `donor_awards_card.yaml` configuration to create a beautiful das
 The awards card shows:
 - Your current award state
 - Total credits and awards received
-- Registration date
 - Progress bar to your next milestone
 - List of all achieved awards with dates
 

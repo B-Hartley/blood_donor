@@ -26,11 +26,17 @@
       "donation_credit": {
         "name": "Donation Credit"
       },
-      "blood_group": {
-        "name": "Blood Group"
-      },
       "total_appointments": {
-        "name": "Total Upcoming Appointments"
+        "name": "Upcoming Appointments"
+      },
+      "award_state": {
+        "name": "Award State"
+      },
+      "total_awards": {
+        "name": "Total Awards"
+      },
+      "next_milestone": {
+        "name": "Next Milestone"
       }
     }
   },
