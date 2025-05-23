@@ -19,6 +19,8 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
+
+from .utils import get_next_appointment
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import (
     CONF_PASSWORD,
@@ -69,7 +71,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     from .services import async_setup_services
     await async_setup_services(hass)
 
-    # Set up sensor platform - Fix: using async_forward_entry_setups instead of async_forward_entry_setup
+    # Forward entry setups for supported platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     return True
@@ -338,25 +340,8 @@ class BloodDonorDataUpdateCoordinator(DataUpdateCoordinator):
                 return
                 
             # Find the closest appointment
-            next_appointment = None
-            try:
-                # Sort appointments by date
-                sorted_appointments = sorted(
-                    appointments,
-                    key=lambda x: datetime.strptime(
-                        x["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
-                    ),
-                )
-                
-                if sorted_appointments:
-                    next_appointment = sorted_appointments[0]
-            except (KeyError, ValueError, IndexError) as error:
-                _LOGGER.error("Error finding next appointment: %s", error)
-                self._set_update_interval(STANDARD_SCAN_INTERVAL)
-                return
-                
-            if not next_appointment:
-                # No valid next appointment, use standard interval
+            next_appointment = get_next_appointment(appointments)
+            if next_appointment is None:
                 self._set_update_interval(STANDARD_SCAN_INTERVAL)
                 return
                 
