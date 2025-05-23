@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from . import DOMAIN, BloodDonorDataUpdateCoordinator
+from .utils import get_next_appointment
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,18 +73,11 @@ class BloodDonorCalendar(CoordinatorEntity, CalendarEntity):
         if not appointments:
             return None
             
-        # Sort appointments by date
         try:
-            sorted_appointments = sorted(
-                appointments,
-                key=lambda x: datetime.strptime(
-                    x["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
-                ),
-            )
-            
-            # Get the next appointment
-            next_appointment = sorted_appointments[0]
-            
+            next_appointment = get_next_appointment(appointments)
+            if not next_appointment:
+                return None
+
             # Convert to CalendarEvent format
             return self._appointment_to_event(next_appointment)
             

@@ -2,6 +2,8 @@
 import logging
 from datetime import datetime
 
+from .utils import get_next_appointment
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -103,17 +105,14 @@ class BloodDonorNextAppointmentSensor(BloodDonorBaseSensor):
             _LOGGER.debug("No appointments found in data")
             return None  # Return None instead of a string to indicate no appointments
 
-        # Sort appointments by date
         try:
-            sorted_appointments = sorted(
-                appointments,
-                key=lambda x: datetime.strptime(
-                    x["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
-                ),
+            next_appointment = get_next_appointment(appointments)
+            if not next_appointment:
+                return None
+            _LOGGER.debug(
+                "Next appointment session date: %s",
+                next_appointment["session"]["sessionDate"],
             )
-            
-            _LOGGER.debug("Sorted %d appointments", len(sorted_appointments))
-            next_appointment = sorted_appointments[0]
             _LOGGER.debug("Next appointment session date: %s", next_appointment["session"]["sessionDate"])
             
             # Return the date in a proper datetime format that Home Assistant can handle
@@ -157,15 +156,9 @@ class BloodDonorNextAppointmentSensor(BloodDonorBaseSensor):
                 except (ValueError, TypeError, IndexError):
                     next_possible_appointment = next_possible_date
 
-        # Sort appointments by date
-        sorted_appointments = sorted(
-            appointments,
-            key=lambda x: datetime.strptime(
-                x["session"]["sessionDate"].split("T")[0], "%Y-%m-%d"
-            ),
-        )
-
-        next_appointment = sorted_appointments[0]
+        next_appointment = get_next_appointment(appointments)
+        if not next_appointment:
+            return {"appointments": []}
         venue = next_appointment["session"]["venue"]["venueName"]
         time = next_appointment["time"].replace("T", "")
         procedure = next_appointment["procedureDescription"]
